@@ -4,6 +4,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
+from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 import rosbag
@@ -25,6 +26,23 @@ def read_bag_messages(bag_path):
             else:
                 r1443.append(msg)
     
+    return imu, r1843, r1443
+
+
+def read_old_messages(bag_path):
+    imu_topic, r1843_topic, r1443_topic = (
+        '/gx5/imu/data', '/mmWaveDataHdl/RScan', '/mmWaveDataHdl/RScan'
+    )
+    imu, r1843, r1443 = [], [], []
+    with rosbag.Bag(bag_path) as bag:
+        for topic, msg, t in bag.read_messages(topics=[imu_topic, r1843_topic, r1443_topic]):
+            if topic == imu_topic:
+                imu.append(msg)
+            elif topic == r1843_topic:
+                r1843.append(msg)
+            else:
+                r1443.append(msg)
+
     return imu, r1843, r1443
 
 
@@ -101,9 +119,75 @@ def process_1443(radar_msgs, angle=None):
     return x, y, z, intensity, rng, doppler
 
 
+def process_mimo(mimo_msgs):
+    x, y, z, intensity, rng, doppler = [], [], [], [], [], []
+    for r_msg in mimo_msgs:
+        frame_x, frame_y, frame_z, frame_int, frame_range, frame_doppler = [], [], [], [], [], []
+        cloud_gen = pc2.read_points(r_msg, field_names=(
+            "x", "y", "z", 'intensity', 'range', 'doppler'
+        ), skip_nans=True)
+        for point in cloud_gen:
+            frame_x.append(point[1])
+            frame_y.append(point[0])
+            frame_z.append(point[2])
+            frame_int.append(point[3])
+            frame_range.append(point[4])
+            frame_doppler.append(point[5])
+
+        frame_x = np.array(frame_x)
+        frame_y = np.array(frame_y)
+        frame_z = np.array(frame_z)
+        x.append(frame_x)
+        y.append(frame_y)
+        z.append(frame_z)
+        intensity.append(np.array(frame_int) / 1000)
+        rng.append(np.array(frame_range))
+        doppler.append(np.array(frame_doppler))
+
+    return np.array(x), np.array(y), np.array(z), np.array(intensity), np.array(rng), np.array(doppler)
+
+
+def plot_mimo(x, y, intens, rng, dop, int_threshold=0, x_limit=100, y_limit=100, y_threshold=0):
+    int_total = np.concatenate(intens)
+    x_max, y_max = 2, 2
+    max_int_per_frame, max_int_y_per_frame = [], []
+
+    fig, ax = plt.subplots()
+
+    for frame_x, frame_y, frame_int in zip(x, y, intens):
+        target_idx = frame_int >= int_threshold
+        target_x, target_y, target_int = frame_x[target_idx], frame_y[target_idx], frame_int[target_idx]
+
+        target_idx = np.abs(target_x) <= x_limit
+        target_x, target_y, target_int = target_x[target_idx], target_y[target_idx], target_int[target_idx]
+        target_idx = target_y <= y_limit
+        target_x, target_y, target_int = target_x[target_idx], target_y[target_idx], target_int[target_idx]
+        target_idx = target_y >= y_threshold
+        target_x, target_y, target_int = target_x[target_idx], target_y[target_idx], target_int[target_idx]
+
+        if target_y.size:
+            x_max = max(x_max, target_x.max())
+            y_max = max(y_max, target_y.max())
+            max_int_idx = np.argmax(target_int)
+            max_int_per_frame.append(target_int[max_int_idx])
+            max_int_y_per_frame.append(target_y[max_int_idx])
+
+        ax.scatter(target_x, target_y, c=target_int, vmin=np.min(int_total), vmax=np.max(int_total))
+
+    max_int_per_frame, max_int_y_per_frame = np.array(max_int_per_frame), np.array(max_int_y_per_frame)
+    max_int_idx = np.argwhere(max_int_per_frame == max_int_per_frame)
+    max_int_y = max_int_y_per_frame[max_int_idx][0]
+
+    fig.set_figheight(y_max * 2), fig.set_figwidth(x_max * 4)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.title.set_text(f'Max intensity distance: {", ".join(max_int_y.round(3).astype(str))} m.')
+    plt.show()
+
+
 def plot_1843(
     x, y, z, ang, intens, rng, dop, 
-    x_limit=100, y_limit=100, y_threshold=0, 
+    x_limit=100, y_limit=100, y_threshold=0.,
     int_threshold=0, int_threshold_percent=False,
     show_plots=True
 ):
@@ -160,8 +244,7 @@ def plot_1843(
     return max_int_y.round(3)[0]
 
 
-
-def plot_1443(y, intens, x_limit=100, y_limit=100, y_threshold=0, int_threshold=0, int_threshold_percent=False, show_plots=True):
+def plot_1443(y, intens, y_limit=100, y_threshold=0., int_threshold=0, int_threshold_percent=False, show_plots=True):
     target_idx = intens >= int_threshold
     target_y, target_int = y[target_idx], intens[target_idx]
     
@@ -173,7 +256,7 @@ def plot_1443(y, intens, x_limit=100, y_limit=100, y_threshold=0, int_threshold=
     if target_y.size:
         y_max = target_y.max()
         max_int_idx = np.argmax(target_int)
-        max_int = target_int[max_int_idx]
+        # max_int = target_int[max_int_idx]
         max_int_y = target_y.round(3)[max_int_idx]
 
         min_distance = np.min(target_y.round(3))
@@ -186,13 +269,13 @@ def plot_1443(y, intens, x_limit=100, y_limit=100, y_threshold=0, int_threshold=
             ax.title.set_text(f'Min distance: {min_distance} m.')
             plt.show()
 
-        return 
+        return min_distance
 
 
 
 def plot_stats(
     x, y, intens, 
-    y_limit=100, x_limit=100, y_threshold=0, window_size=10,
+    y_limit=100, x_limit=100, y_threshold=0., window_size=10,
     int_threshold=0, int_threshold_percent=False,
     show_plots=True
 ): 
@@ -225,15 +308,15 @@ def plot_stats(
             y_max_intens.append(target_y[np.argmax(target_int)])
             y_min.append(target_y.min())
             y_mean.append(target_y.mean())
-            y_median.append(np.median(target_y.round(2)))
+            y_median.append(np.median(target_y.round(3)))
             y_max.append(target_y.max())
             
     y_max_intens, y_min, y_mean, y_min_mean, y_median, y_max = np.array(y_max_intens), np.array(y_min), np.array(y_mean), np.array(y_min_mean), np.array(y_median), np.array(y_max)
-    y_max_intens_mode = stats.mode(y_max_intens.round(2)).mode[0]
-    y_min_mode = stats.mode(y_min.round(2)).mode[0]
-    y_mean_mode = stats.mode(y_mean.round(2)).mode[0]
+    y_max_intens_mode = stats.mode(y_max_intens.round(3)).mode[0]
+    y_min_mode = stats.mode(y_min.round(3)).mode[0]
+    y_mean_mode = stats.mode(y_mean.round(3)).mode[0]
     y_median_mode = stats.mode(y_median).mode[0]
-    y_max_mode = stats.mode(y_max.round(2)).mode[0]
+    y_max_mode = stats.mode(y_max.round(3)).mode[0]
 
     if show_plots:
         fig, ax = plt.subplots(5)
@@ -262,7 +345,7 @@ def plot_stats(
 def plot_stats_1443(
     x, y, intens, 
     y_limit=100, x_limit=100, y_threshold=0, window_size=10, 
-    int_threshold=0, int_threshold_percent=False,
+    int_threshold=0., int_threshold_percent=False,
     show_plots=True
 ): 
     if int_threshold_percent:
@@ -292,15 +375,15 @@ def plot_stats_1443(
             y_max_intens.append(target_y[np.argmax(target_int)])
             y_min.append(target_y.min())
             y_mean.append(target_y.mean())
-            y_median.append(np.median(target_y.round(2)))
+            y_median.append(np.median(target_y.round(3)))
             y_max.append(target_y.max())
             
     y_max_intens, y_min, y_mean, y_min_mean, y_median, y_max = np.array(y_max_intens), np.array(y_min), np.array(y_mean), np.array(y_min_mean), np.array(y_median), np.array(y_max)
-    y_max_intens_mode = stats.mode(y_max_intens.round(2)).mode[0]
-    y_min_mode = stats.mode(y_min.round(2)).mode[0]
-    y_mean_mode = stats.mode(y_mean.round(2)).mode[0]
+    y_max_intens_mode = stats.mode(y_max_intens.round(3)).mode[0]
+    y_min_mode = stats.mode(y_min.round(3)).mode[0]
+    y_mean_mode = stats.mode(y_mean.round(3)).mode[0]
     y_median_mode = stats.mode(y_median).mode[0]
-    y_max_mode = stats.mode(y_max.round(2)).mode[0]
+    y_max_mode = stats.mode(y_max.round(3)).mode[0]
 
     if show_plots:
         fig, ax = plt.subplots(5)
@@ -335,7 +418,7 @@ def process_bags(
         os.path.join(bags_folder, filename) for filename in os.listdir(bags_folder)
         if filename.endswith('.bag')
     )
-    paths = sorted(paths, key=os.path.getmtime)
+    paths = sorted(paths)
     print('Processing', len(paths), 'files')
     
     max_int_y_1843, min_y_1443 = [], []
@@ -370,7 +453,7 @@ def process_bags(
 
         min_y = plot_1443(
             y1443, int1443,
-            y_limit=y_limit, x_limit=x_limit, y_threshold=y_threshold,
+            y_limit=y_limit, y_threshold=y_threshold,
             show_plots=show_plots
         )
         min_y_1443.append(min_y)
@@ -444,13 +527,14 @@ def plot_total(data, gt, label_dates=False):
         min_y_1443_diffs.append(min_y_1443[0] - min_y)
         y_max_intens_mode_1443_diffs.append(y_max_intens_mode_1443[0] - y_max)
         y_min_mode_1443_diffs.append(y_min_mode_1443[0] - y_min)
+
+    depth_diffs, min_y_1443_diffs, y_max_intens_mode_1443_diffs, y_min_mode_1443_diffs = np.array(depth_diffs), np.array(min_y_1443_diffs), np.array(y_max_intens_mode_1443_diffs), np.array(y_min_mode_1443_diffs)
         
     fig, ax = plt.subplots(6)
-    fig.set_figheight(30), fig.set_figwidth(14)
-    date_label_step = 10
+    fig.set_figheight(40), fig.set_figwidth(14)
 
     ax[0].plot(dates, min_y_1443)
-    ax[0].plot(gt[0], gt[1])
+    # ax[0].plot(gt[0], gt[1])
     ax[0].title.set_text(f'Min Distance from 1443, m.')
     ax[0].set_xlabel('Measurement Time')
     ax[0].set_ylabel('Distance, m.')
@@ -461,7 +545,7 @@ def plot_total(data, gt, label_dates=False):
     ax[1].set_ylabel('Decrease in Depth / Increase in Distance, m.')
 
     ax[2].plot(dates, y_max_intens_mode_1443)
-    ax[2].plot(gt[0], gt[1])
+    # ax[2].plot(gt[0], gt[1])
     ax[2].title.set_text(f'Windowed Mode of Max Intensity from 1443, m.')
     ax[2].set_xlabel('Measurement Time')
     ax[2].set_ylabel('Distance, m.')
@@ -472,7 +556,7 @@ def plot_total(data, gt, label_dates=False):
     ax[3].set_ylabel('Decrease in Depth / Increase in Distance, m.')
 
     ax[4].plot(dates, y_min_mode_1443)
-    ax[4].plot(gt[0], gt[1])
+    # ax[4].plot(gt[0], gt[1])
     ax[4].title.set_text(f'Windowed Mode of Min Distance from 1443, m.')
     ax[4].set_xlabel('Measurement Time')
     ax[4].set_ylabel('Distance, m.')
@@ -481,6 +565,24 @@ def plot_total(data, gt, label_dates=False):
     ax[5].plot(gt[0][1:], depth_diffs)
     ax[5].set_xlabel('Measurement Time')
     ax[5].set_ylabel('Decrease in Depth / Increase in Distance, m.')
+
+    indices_diffs = np.linspace(0, 1, len(min_y_1443_diffs))
+    indices_data = np.linspace(0, 1, len(depth_diffs))
+    f = interp1d(indices_data, depth_diffs, kind='quadratic')
+    interpolated_data = f(indices_diffs)
+    print('Min distance MSE:', np.mean((min_y_1443_diffs - interpolated_data)**2))
+
+    # ax[6].plot(dates[1:], min_y_1443_diffs)
+    # ax[6].plot(gt[0][1:], depth_diffs)
+    # ax[6].plot(dates[1:], interpolated_data)
+
+    indices_diffs = np.linspace(0, 1, len(y_max_intens_mode_1443_diffs))
+    interpolated_data = f(indices_diffs)
+    print('Max Intensity MSE:', np.mean((y_max_intens_mode_1443_diffs - interpolated_data) ** 2))
+
+    indices_diffs = np.linspace(0, 1, len(y_min_mode_1443_diffs))
+    interpolated_data = f(indices_diffs)
+    print('Windowed min distance MSE:', np.mean((y_min_mode_1443_diffs - interpolated_data) ** 2))
 
     # ax[3].plot(dates, y_mean_mode_1443)
     # ax[3].title.set_text(f'Windowed Mode of Mean Distance from 1443, m.')
