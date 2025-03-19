@@ -1,5 +1,9 @@
+import pickle
+from collections import defaultdict
+
 import numpy as np
 from tqdm import tqdm
+from scipy import stats as scipy_stats
 
 
 def filter_points(
@@ -24,7 +28,7 @@ def filter_points(
     """
     filtered_data = {key: [] for key in sensor_data.keys()}
 
-    for run_idx in tqdm(range(len(sensor_data['x'])), desc="Filtering points"):
+    for run_idx in range(len(sensor_data['x'])):
         filtered_run = {key: [] for key in sensor_data.keys()}
 
         for measurement_idx in range(len(sensor_data['x'][run_idx])):
@@ -83,7 +87,7 @@ def compute_statistics(sensor_data, window_size=1):
         "mean_distance_w": [],
         "median_distance_w": []
     }
-    for run_idx in tqdm(range(num_runs)):
+    for run_idx in range(num_runs):
         y_values_run = sensor_data["y"][run_idx]
         intensity_run = sensor_data["intensity"][run_idx]
         num_measurements = len(y_values_run)
@@ -131,3 +135,170 @@ def match_gt_to_timestamps(sensor_dates, gt_dates, gt_depths):
         closest_idx = np.argmin(np.abs(gt_dates - sensor_time))
         matched_depths[i] = gt_depths[closest_idx]
     return matched_depths
+
+
+def calc_distance_per_run(sensor_stat, max_measurements=0):
+    max_measurements = max_measurements or 99999999
+    sensor_modes = np.array([scipy_stats.mode(y[:max_measurements], keepdims=False).mode for y in sensor_stat])
+    return sensor_modes
+
+
+def calc_deltas(sensor_measurements, gt_depths):
+    sensor_deltas = sensor_measurements - sensor_measurements[0]
+    gt_deltas = -(gt_depths - gt_depths[0])
+    return sensor_deltas, gt_deltas
+
+
+def calc_delta_mse(sensor_y, gt_depths, max_measurements=0):
+    sensor_modes = calc_distance_per_run(sensor_y, max_measurements)
+    sensor_deltas, gt_deltas = calc_deltas(sensor_modes, gt_depths)
+    mse = np.mean((sensor_deltas - gt_deltas) ** 2)
+    return mse
+
+
+def param_search_smallw(sensor_data, gt_depths, sensor_name):
+    scores = []
+    for y_threshold in (0.0, 0.1, 0.5):
+        print('y_threshold', y_threshold)
+        for y_limit in tqdm((10, 15, 20, 50)):
+            for x_limit in (0.1, 0.2, 0.5, 1, 2, 5, 10):
+                for intensity_threshold_percent in (0, 5, 10, 25, 50, 75, 90):
+                    for window_size in (2, 5, 10, 15, 20):
+                        data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
+                        sensor_stats = compute_statistics(data_filtered, window_size=window_size)
+                        for stat_name in sensor_stats:
+                            mse = calc_delta_mse(sensor_stats[stat_name], gt_depths)
+                            score = {
+                                'y_threshold': y_threshold,
+                                'y_limit': y_limit,
+                                'x_limit': x_limit,
+                                'intensity_threshold_percent': intensity_threshold_percent,
+                                'window_size': window_size,
+                                'stat_name': stat_name,
+                                'mse': mse
+                            }
+                            scores.append(score)
+    with open(f'{sensor_name}_params_smallw.pkl', 'wb') as f:
+        pickle.dump(scores, f)
+    return scores
+
+# def param_search_limited_measurements(sensor_data, gt_depths, sensor_name):
+#     scores = []
+#     for y_threshold in (0.0, 0.1, 0.5):
+#         print('y_threshold', y_threshold)
+#         for y_limit in tqdm((10, 15, 20, 50)):
+#             for x_limit in (0.1, 0.2, 0.5, 1, 2, 5, 10):
+#                 for intensity_threshold_percent in (0, 5, 10, 25, 50, 75, 90):
+#                     for window_size in (2, 5, 10, 15, 20):
+#                         data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
+#                         sensor_stats = compute_statistics(data_filtered, window_size=window_size)
+#                         for stat_name in sensor_stats:
+#                             for max_measurements in (1, 2, 5, 10, 25, 50, 100):
+#                                 mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
+#                                 score = {
+#                                     'y_threshold': y_threshold,
+#                                     'y_limit': y_limit,
+#                                     'x_limit': x_limit,
+#                                     'intensity_threshold_percent': intensity_threshold_percent,
+#                                     'window_size': window_size,
+#                                     'stat_name': stat_name,
+#                                     'mse': mse
+#                                 }
+#                                 scores.append(score)
+#
+#     with open(f'{sensor_name}_params_limited_measurements.pkl', 'wb') as f:
+#         pickle.dump(scores, f)
+#     return scores
+
+def window_size_search(sensor_data, gt_depths, sensor_name):
+    scores = []
+    for window_size in (2, 5, 10, 15, 20, 30, 50, 75, 100, 150, 200):
+        sensor_stats = compute_statistics(sensor_data, window_size=window_size)
+        for stat_name in sensor_stats:
+            for max_measurements in (1, 2, 5, 10, 25, 50, 100):
+                mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
+                score = {
+                    'window_size': window_size,
+                    'max_measurements': max_measurements,
+                    'stat_name': stat_name,
+                    'mse': mse
+                }
+                scores.append(score)
+    with open(f'{sensor_name}_window_size.pkl', 'wb') as f:
+        pickle.dump(scores, f)
+    return scores
+
+
+def param_search_limited_measurements(sensor_data, gt_depths, sensor_name):
+    scores = []
+    for y_threshold in (0.0, 0.1):
+        print('y_threshold', y_threshold)
+        for y_limit in tqdm((25, 50, 100)):
+            for x_limit in (1, 2, 5, 10):
+                for intensity_threshold_percent in (50, 75, 90):
+                    for window_size in (2, 5, 10, 15, 20):
+                        data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
+                        sensor_stats = compute_statistics(data_filtered, window_size=window_size)
+                        for stat_name in sensor_stats:
+                            for max_measurements in (1, 2, 5, 10, 25, 50, 100):
+                                mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
+                                score = {
+                                    'y_threshold': y_threshold,
+                                    'y_limit': y_limit,
+                                    'x_limit': x_limit,
+                                    'intensity_threshold_percent': intensity_threshold_percent,
+                                    'window_size': window_size,
+                                    'max_measurements': max_measurements,
+                                    'stat_name': stat_name,
+                                    'mse': mse
+                                }
+                                scores.append(score)
+    with open(f'{sensor_name}_params_limited_measurements.pkl', 'wb') as f:
+        pickle.dump(scores, f)
+    return scores
+
+
+def get_best_scores(scores):
+    best_mse = min(scores, key=lambda x: x['mse'])['mse']
+    smallest_scores = list(filter(lambda x: x['mse'] == best_mse, scores))
+    return smallest_scores
+
+
+def print_unique_score_params(scores):
+    params = defaultdict(set)
+    for score in scores:
+        for stat_name in score:
+            params[stat_name].add(score[stat_name])
+    for stat_name in params:
+        print(f'{stat_name}: {sorted(list(params[stat_name]))}')
+
+
+def compute_outlier_idx(data, multiplier=1.5):
+    q1, q3 = np.percentile(data, [25, 75])
+    iqr = q3 - q1
+    lower_bound = q1 - multiplier * iqr
+    upper_bound = q3 + multiplier * iqr
+    return (data >= lower_bound) & (data <= upper_bound)
+
+
+def compute_metrics(measurements, autocorrelation_lag=1):
+    standard_deviation = np.std(measurements)
+    total_variation = np.sum(np.abs(np.diff(measurements)))
+
+    if len(measurements) < autocorrelation_lag + 1:
+        raise ValueError("Lag is too large for the given data.")
+    mean_measurements = np.mean(measurements)
+    numerator = np.sum((measurements[:-autocorrelation_lag] - mean_measurements) * (measurements[autocorrelation_lag:] - mean_measurements))
+    denominator = np.sum((measurements - mean_measurements) ** 2)
+    autocorrelation = numerator / denominator if denominator != 0 else 0.0
+
+    signal_variance = np.var(measurements)
+    noise_variance = np.var(np.diff(measurements))
+    snr = 10 * np.log10(signal_variance / noise_variance) if noise_variance != 0 else float('inf')
+
+    return {
+        'standard_deviation': standard_deviation,
+        'total_variation': total_variation,
+        'autocorrelation': autocorrelation,
+        'snr': snr
+    }
