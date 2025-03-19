@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import stats as scipy_stats
 
 
 def points(sensor_data, run_index):
@@ -14,103 +15,62 @@ def points(sensor_data, run_index):
     cbar.set_label("Intensity")
     ax.set_xlabel("X Coordinate (m)")
     ax.set_ylabel("Y Coordinate (m)")
-    ax.set_title(f"Run {run_index}: All Points from All Measurements (Colored by Intensity)")
+    ax.set_title(f"Run {run_index}")
     plt.show()
 
 
-def radar_measurements(dates, y_values, title="Radar Measurements", ylabel="Distance (m)"):
-    """
-    Plot radar measurements over time.
+def plot_statistic(x_values, y_values, x_label, y_label, title):
+    result_value = scipy_stats.mode(y_values, keepdims=False).mode
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(x_values, y_values)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(f'{title}, {result_value:.3f} m')
+    ax.grid(True)
+    plt.show()
 
-    Parameters:
-        dates (array-like): Timestamps of the measurements.
-        y_values (array-like): Measured distances or intensities.
-        title (str): Title of the plot.
-        ylabel (str): Label for the Y-axis.
-    """
+
+def stats(stats, run_index):    
+    max_intensities = stats['max_intensity'][run_index]
+    min_distances = stats['min_distance'][run_index]
+    max_intens_windowed = stats['max_intensity_w'][run_index]
+    min_dist_windowed = stats['min_distance_w'][run_index]
+    mean_distances = stats['mean_distance_w'][run_index] 
+    median_distances = stats['median_distance_w'][run_index]
+
+    plot_statistic(np.arange(len(max_intensities)), max_intensities, "Measurement Index", "Max Intensity", f"Run {run_index}: Max Intensity per Measurement")
+    plot_statistic(np.arange(len(min_distances)), min_distances, "Measurement Index", "Min Distance", f"Run {run_index}: Min Distance per Measurement")
+    plot_statistic(np.arange(len(max_intens_windowed)), max_intens_windowed, "Measurement Index", "Max Intensity (Windowed)", f"Run {run_index}: Windowed Max Intensity")
+    plot_statistic(np.arange(len(min_dist_windowed)), min_dist_windowed, "Measurement Index", "Min Distance (Windowed)", f"Run {run_index}: Windowed Min Distance")
+    plot_statistic(np.arange(len(mean_distances)), mean_distances, "Measurement Index", "Mean Distance", f"Run {run_index}: Mean Distance per Measurement")
+    plot_statistic(np.arange(len(median_distances)), median_distances, "Measurement Index", "Median Distance", f"Run {run_index}: Median Distance per Measurement")
+
+
+def plot_deltas(sensor_t, sensor_y, gt_depths, label):
+    sensor_modes = np.array([scipy_stats.mode(y, keepdims=False).mode if y.size > 0 else np.nan for y in sensor_y])
+    sensor_deltas = sensor_modes - sensor_modes[0]
+    gt_deltas = -(gt_depths - gt_depths[0])
+    mse = np.mean((sensor_deltas - gt_deltas) ** 2)
+
     plt.figure(figsize=(12, 6))
-    plt.plot(dates, y_values, marker="o", linestyle="-", label="Measured Data")
+    plt.plot(sensor_t, sensor_deltas, label="Distance(i) vs Distance(0) - Increase in Distance", color="blue")
+    plt.plot(sensor_t, gt_deltas, label="Depth(i) vs Depth(0) - Decrease in Depth", color="orange")
     plt.xlabel("Time")
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.grid(True)
+    plt.ylabel("Delta (m)")
+    plt.title(f"{label}, MSE: {mse:.6f} m")
     plt.legend()
     plt.show()
 
 
-def statistics(dates, max_intens, min_values, mean_values, median_values, max_values, title="Radar Measurement Statistics"):
-    """
-    Plot multiple statistical measures over time.
-
-    Parameters:
-        dates (array-like): Timestamps of the measurements.
-        max_intens (array-like): Max intensity distances.
-        min_values (array-like): Minimum distances.
-        mean_values (array-like): Mean distances.
-        median_values (array-like): Median distances.
-        max_values (array-like): Maximum distances.
-        title (str): Title of the plot.
-    """
-    plt.figure(figsize=(12, 6))
-    plt.plot(dates, max_intens, marker="o", linestyle="-", label="Max Intensity")
-    plt.plot(dates, min_values, marker="s", linestyle="-", label="Min Distance")
-    plt.plot(dates, mean_values, marker="^", linestyle="-", label="Mean Distance")
-    plt.plot(dates, median_values, marker="x", linestyle="-", label="Median Distance")
-    plt.plot(dates, max_values, marker="d", linestyle="-", label="Max Distance")
-
-    plt.xlabel("Time")
-    plt.ylabel("Distance (m)")
-    plt.title(title)
-    plt.grid(True)
-    plt.legend()
-    plt.show()
-
-
-def ground_truth_comparison(dates, measured_deltas, gt_dates, gt_deltas, title="Comparison with Ground Truth"):
-    """
-    Compare radar-measured water level changes with ground truth.
-
-    Parameters:
-        dates (array-like): Timestamps of the radar measurements.
-        measured_deltas (array-like): Computed changes in measured distance.
-        gt_dates (array-like): Timestamps of the ground truth data.
-        gt_deltas (array-like): Ground truth water level changes.
-        title (str): Title of the plot.
-    """
-    plt.figure(figsize=(12, 6))
-    plt.plot(dates, measured_deltas, marker="o", linestyle="-", label="Measured Delta")
-    plt.plot(gt_dates, gt_deltas, marker="s", linestyle="--", label="Ground Truth Delta")
-
-    plt.xlabel("Time")
-    plt.ylabel("Change in Distance (m)")
-    plt.title(title)
-    plt.grid(True)
-    plt.legend()
-    plt.show()
-
-
-def final_error(dates, measured_deltas, gt_dates, gt_deltas, interpolated_gt, mse_error):
-    """
-    Plot the final computed error between measured deltas and ground truth.
-
-    Parameters:
-        dates (array-like): Timestamps of the radar measurements.
-        measured_deltas (array-like): Computed changes in measured distance.
-        gt_dates (array-like): Timestamps of the ground truth data.
-        gt_deltas (array-like): Ground truth water level changes.
-        interpolated_gt (array-like): Interpolated ground truth values.
-        mse_error (float): Mean Squared Error between measured and GT deltas.
-    """
-    plt.figure(figsize=(12, 6))
-    plt.plot(dates, measured_deltas, marker="o", linestyle="-", label="Measured Delta")
-    plt.plot(gt_dates, gt_deltas, marker="s", linestyle="--", label="Ground Truth Delta")
-    plt.plot(dates, interpolated_gt, linestyle="dotted", label="Interpolated Ground Truth")
-
-    plt.xlabel("Time")
-    plt.ylabel("Change in Distance (m)")
-    plt.title(f"Final Error Comparison (MSE: {mse_error:.4f})")
-    plt.grid(True)
-    plt.legend()
-    plt.show()
-
-    print(f"Final MSE Error: {mse_error:.4f}")
+def deltas(dates, sensor_stats, gt_depths):
+    stats_labels = {
+        "max_intensity": "Max Intensity",
+        "min_distance": "Min Distance",
+        "max_intensity_w": "Max Intensity (Windowed)",
+        "min_distance_w": "Min Distance (Windowed)",
+        "mean_distance_w": "Mean Distance (Windowed)",
+        "median_distance_w": "Median Distance (Windowed)",
+    }
+    for key, label in stats_labels.items():
+        if key in sensor_stats:
+            plot_deltas(dates, sensor_stats[key], gt_depths, label=label)

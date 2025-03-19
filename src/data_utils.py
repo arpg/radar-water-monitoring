@@ -61,7 +61,7 @@ def filter_points(
     return filtered_data
 
 
-def compute_statistics(sensor_data, window_size=20):
+def compute_statistics(sensor_data, window_size=1):
     """
     Compute statistical metrics for each measurement and apply a rolling window to measurements.
 
@@ -116,3 +116,18 @@ def compute_statistics(sensor_data, window_size=20):
         results["median_distance_w"].append(np.array(y_median_windowed))
 
     return results
+
+
+def filter_gt(timestamps, depths, min_depth_threshold=0.0):
+    if len(timestamps) != len(depths):
+        raise ValueError("Timestamps and depths must have the same length.")
+    valid_indices = depths >= min_depth_threshold
+    return timestamps[valid_indices], depths[valid_indices]
+
+
+def match_gt_to_timestamps(sensor_dates, gt_dates, gt_depths):
+    matched_depths = np.zeros_like(sensor_dates, dtype=float)
+    for i, sensor_time in enumerate(sensor_dates):
+        closest_idx = np.argmin(np.abs(gt_dates - sensor_time))
+        matched_depths[i] = gt_depths[closest_idx]
+    return matched_depths
