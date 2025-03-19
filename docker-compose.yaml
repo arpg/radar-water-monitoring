@@ -1,0 +1,8 @@
+services:
+  radar-processing:
+    build: .
+    container_name: data_preprocessing
+    volumes:
+      - ~/data:/data
+    stdin_open: true
+    tty: true
