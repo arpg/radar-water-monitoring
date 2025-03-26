@@ -56,8 +56,8 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
     mse = np.mean((sensor_deltas - gt_deltas) ** 2)
 
     plt.figure(figsize=(12, 6))
-    plt.plot(sensor_t, sensor_deltas, label="Distance[i] - Distance[0]: Increase in Distance", color="blue")
-    plt.plot(sensor_t, gt_deltas, label="Depth[0] - Depth[i]: Decrease in Depth", color="orange")
+    plt.plot(sensor_t, sensor_deltas, label="Measured Increase in Distance: Distance[i] - Distance[0]", color="blue")
+    plt.plot(sensor_t, gt_deltas, label="True Decrease in Depth: Depth[0] - Depth[i]", color="orange")
     plt.xlabel("Time")
     plt.ylabel("Water Level Delta (m)")
     plt.title(f"{sensor_name.upper()} {stat_name.replace('_', ' ').capitalize()}, MSE: {mse:.6f} m^2")
@@ -66,9 +66,9 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
     plt.show()
 
 
-def deltas(dates, sensor_stats, gt_depths, sensor_name):
+def deltas(dates, sensor_stats, gt_depths, sensor_name, max_measurements=0):
     for stat_name in sensor_stats:
-        plot_deltas(dates, sensor_stats[stat_name], gt_depths, stat_name, sensor_name)
+        plot_deltas(dates, sensor_stats[stat_name], gt_depths, stat_name, sensor_name, max_measurements=max_measurements)
 
 
 def plot_stat_all_runs(sensor_t, sensor_stat, x_label, y_label, stat_name, sensor_name):

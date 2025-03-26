@@ -182,40 +182,13 @@ def param_search_smallw(sensor_data, gt_depths, sensor_name):
         pickle.dump(scores, f)
     return scores
 
-# def param_search_limited_measurements(sensor_data, gt_depths, sensor_name):
-#     scores = []
-#     for y_threshold in (0.0, 0.1, 0.5):
-#         print('y_threshold', y_threshold)
-#         for y_limit in tqdm((10, 15, 20, 50)):
-#             for x_limit in (0.1, 0.2, 0.5, 1, 2, 5, 10):
-#                 for intensity_threshold_percent in (0, 5, 10, 25, 50, 75, 90):
-#                     for window_size in (2, 5, 10, 15, 20):
-#                         data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
-#                         sensor_stats = compute_statistics(data_filtered, window_size=window_size)
-#                         for stat_name in sensor_stats:
-#                             for max_measurements in (1, 2, 5, 10, 25, 50, 100):
-#                                 mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
-#                                 score = {
-#                                     'y_threshold': y_threshold,
-#                                     'y_limit': y_limit,
-#                                     'x_limit': x_limit,
-#                                     'intensity_threshold_percent': intensity_threshold_percent,
-#                                     'window_size': window_size,
-#                                     'stat_name': stat_name,
-#                                     'mse': mse
-#                                 }
-#                                 scores.append(score)
-#
-#     with open(f'{sensor_name}_params_limited_measurements.pkl', 'wb') as f:
-#         pickle.dump(scores, f)
-#     return scores
 
 def window_size_search(sensor_data, gt_depths, sensor_name):
     scores = []
-    for window_size in (2, 5, 10, 15, 20, 30, 50, 75, 100, 150, 200):
+    for window_size in (2, 5, 10):
         sensor_stats = compute_statistics(sensor_data, window_size=window_size)
-        for stat_name in sensor_stats:
-            for max_measurements in (1, 2, 5, 10, 25, 50, 100):
+        for stat_name in 'max_intensity_w', :
+            for max_measurements in (10, 25, 50):
                 mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
                 score = {
                     'window_size': window_size,
