@@ -1,2 +1,12 @@
 __pycache__
 .idea
+.vscode
+.DS_Store
+
+pics/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff

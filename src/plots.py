@@ -1,21 +1,39 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats as scipy_stats
+from matplotlib import cm
+from matplotlib.colors import ListedColormap
 
 
-def points(sensor_data, run_index):
+base = cm.get_cmap('coolwarm', 256)
+n_colors = 256
+half = n_colors // 2
+lower = base(np.linspace(0.0, 0.5, half)**0.9)
+upper = base(np.linspace(0.5, 1.0, half)**0.7)
+colors = np.vstack((lower, upper))
+coolwarm_cmap = ListedColormap(colors, name='coolwarm_redshift')
+
+
+def points(sensor_data, run_index, figsize=(5, 5), save_filename=None, gt_level=None):
     if run_index >= len(sensor_data['x']) or run_index < 0:
         raise ValueError(f"Invalid run index: {run_index}. Must be between 0 and {len(sensor_data['x']) - 1}.")
     x_vals = np.concatenate(sensor_data['x'][run_index])
     y_vals = np.concatenate(sensor_data['y'][run_index])
     intensities = np.concatenate(sensor_data['intensity'][run_index])
-    fig, ax = plt.subplots(figsize=(10, 8))
-    scatter = ax.scatter(x_vals, y_vals, c=intensities, cmap='viridis', alpha=0.7, s=5)
+    fig, ax = plt.subplots(figsize=figsize)
+    scatter = ax.scatter(x_vals, y_vals, c=intensities, cmap=coolwarm_cmap, alpha=0.7, s=5)
     cbar = plt.colorbar(scatter)
-    cbar.set_label("Intensity")
+    cbar.set_label("Signal Intensity")
     ax.set_xlabel("X Coordinate (m)")
     ax.set_ylabel("Y Coordinate (m)")
-    ax.set_title(f"Run {run_index}")
+
+    if gt_level is not None:
+        ax.axhline(y=gt_level, color='dimgray', linestyle=':', label='True Water Level')
+        ax.legend(fontsize=14)
+        
+    if save_filename:
+        plt.savefig(save_filename, dpi=900, bbox_inches='tight')
+
     plt.show()
 
 

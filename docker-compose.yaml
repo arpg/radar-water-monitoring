@@ -1,8 +1,20 @@
 services:
   radar-processing:
     build: .
-    container_name: data_preprocessing
     volumes:
       - ~/data:/data
     stdin_open: true
     tty: true
+
+  auto:
+    extends:
+      service: radar-processing
+    environment:
+      - BAGS_PATH=/data/deployment_nov2023
+      - GT_PATH=/data/deployment_nov2023/GT_Nov2023.csv
+
+  manual:
+    extends:
+      service: radar-processing
+    environment:
+      - BAGS_PATH=/data/deployment_sept2023

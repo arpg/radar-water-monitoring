@@ -9,7 +9,6 @@ from sensor_msgs import point_cloud2 as pc2
 import tf.transformations as tf
 
 
-
 def read_bag_messages(bag_path):
     imu_topic, r1843_topic, r1443_topic = (
         "/gx5/imu/data",
@@ -127,7 +126,7 @@ def read_gt(path):
     return np.array(gt_dates), np.array(gt_depths)
 
 
-def process_bags(bags_folder, gt_path):
+def process_bags(bags_folder, gt_path=None):
     """Process ROS bags and return extracted radar measurements structured in a dictionary."""
     filename_formats = ("%d.%m.%Y_%H.%M", "%H.%M.%S_%d.%m.%Y")
     bag_paths = sorted(
@@ -135,14 +134,16 @@ def process_bags(bags_folder, gt_path):
         for f in os.listdir(bags_folder)
         if f.endswith(".bag")
     )
-    print(f"Processing {len(bag_paths)} files")
+    print(f"Processing {len(bag_paths)} files in directory: {bags_folder}")
 
     results = {
         "dates": [],
         "AWR1843": {"x": [], "y": [], "z": [], "intensity": []},
-        "IWR1443": {"x": [], "y": [], "z": [], "intensity": []},
-        "ground_truth": read_gt(gt_path),
+        "IWR1443": {"x": [], "y": [], "z": [], "intensity": []}
     }
+    if gt_path:
+        results["ground_truth"] = read_gt(gt_path)
+
     for path in tqdm(bag_paths):
         filename = os.path.basename(path).replace(".bag", "")
         dt = None
