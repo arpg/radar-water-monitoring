@@ -66,7 +66,7 @@ def stats(sensor_stats, run_index):
     plot_statistic(np.arange(len(median_distances)), median_distances, "Measurement Index", "Median Distance", f"Run {run_index}: Median Distance per Measurement")
 
 
-def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measurements=0):
+def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measurements=0, **kwargs):
     max_measurements = max_measurements or 99999999
     sensor_modes = np.array([scipy_stats.mode(y[:max_measurements], keepdims=False).mode for y in sensor_y])
     sensor_deltas = sensor_modes - sensor_modes[0]
@@ -80,13 +80,131 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
     plt.ylabel("Water Level Delta (m)")
     plt.title(f"{sensor_name.upper()} {stat_name.replace('_', ' ').capitalize()}, MSE: {mse:.6f} m^2")
     plt.legend()
-    plt.savefig(f"plots/{sensor_name.replace(' ', '_').lower()}/{stat_name}_deltas_mse{mse:.6f}.png", dpi=600, bbox_inches="tight")
+    plt.savefig(f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_deltas_mse{mse:.6f}.png", dpi=900, bbox_inches="tight")
     plt.show()
 
 
-def deltas(dates, sensor_stats, gt_depths, sensor_name, max_measurements=0):
+
+measured_color = '#B40426'     # Brick red
+truth_color = '#3B4CC0'  # Teal
+
+def reject_outliers_z(y, threshold=3):
+    mean = np.mean(y)
+    std = np.std(y)
+    return y[np.abs(y - mean) < threshold * std]
+
+
+def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measurements=0, z_score_threshold=3, **kwargs):
+    max_measurements = max_measurements or 99999999
+    # sensor_y = [reject_outliers_z(y[:max_measurements] * 100, threshold=z_score_threshold) for y in sensor_y]
+    sensor_y = [y[:max_measurements] * 100 for y in sensor_y]
+    sensor_modes = np.array([scipy_stats.mode(y, keepdims=False).mode for y in sensor_y])
+    sensor_stds = np.array([np.std(y) for y in sensor_y])
+    # sensor_stds = np.clip(sensor_stds, 0, np.percentile(sensor_stds, 99))
+    mean_std = np.mean(sensor_stds)
+
+    sensor_deltas = sensor_modes - sensor_modes[0]
+    gt_deltas = -(gt_depths - gt_depths[0]) * 100
+    mse = np.mean((sensor_deltas - gt_deltas) ** 2)
+    print(f"MSE: {mse:.8f}, Mean Std Across Time: {mean_std:.8f}")
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(sensor_t, sensor_deltas, label="Measured Δ", color=measured_color)
+    plt.plot(sensor_t, gt_deltas, label="True Δ", color=truth_color)
+
+    # Add shaded ±1σ region around the measured delta line
+    plt.fill_between(sensor_t,
+                     sensor_deltas - 2 * sensor_stds,
+                     sensor_deltas + 2 * sensor_stds,
+    color=measured_color, alpha=0.3, label='±2σ Region')
+
+    # Labels and title
+    plt.xlabel("Time", fontsize=14)  #, fontweight='bold')
+    plt.ylabel("Water Level Change (cm)", fontsize=14)  #, fontweight='bold')
+    plt.xticks(rotation=45, fontsize=14, fontweight='bold')
+    plt.yticks(fontweight='bold', fontsize=14)
+    title = f"{sensor_name.upper()} — {stat_name.replace('_', ' ').title()}"
+    if title.endswith(' W'):
+        title = title.replace('— ', '— Windowed ')[:-2]
+    # plt.title(title, fontsize=16, fontweight='bold')
+
+    # Grid and legend
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+    plt.legend(fontsize=18, loc='best')
+    plt.tight_layout()
+
+    # Save
+    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_deltas.png"
+    print('save as', fname)
+    plt.savefig(fname, dpi=900, bbox_inches="tight")
+    plt.show()
+
+    return mse
+
+
+def plot_deltas_compared(
+        sensor_t, sensor_y, gt_depths, stat_name, sensor_name, 
+        other_sensor_y, other_stat_name, other_sensor_name,
+        max_measurements=0, other_sensor_max_measurements=0, z_score_threshold=3, **kwargs
+):
+    max_measurements = max_measurements or 99999999
+    # sensor_y = [reject_outliers_z(y[:max_measurements] * 100, threshold=z_score_threshold) for y in sensor_y]
+    sensor_y = [y[:max_measurements] * 100 for y in sensor_y]
+    sensor_modes = np.array([scipy_stats.mode(y, keepdims=False).mode for y in sensor_y])
+    sensor_stds = np.array([np.std(y) for y in sensor_y])
+    # sensor_stds = np.clip(sensor_stds, 0, np.percentile(sensor_stds, 99))
+    mean_std = np.mean(sensor_stds)
+    sensor_deltas = sensor_modes - sensor_modes[0]
+    gt_deltas = -(gt_depths - gt_depths[0]) * 100
+    mse = np.mean((sensor_deltas - gt_deltas) ** 2)
+    print(f"MSE: {mse:.8f}, Mean Std Across Time: {mean_std:.8f}")
+
+    other_sensor_max_measurements = other_sensor_max_measurements or 99999999
+    other_sensor_y = [y[:other_sensor_max_measurements] * 100 for y in other_sensor_y]
+    other_sensor_modes = np.array([scipy_stats.mode(y, keepdims=False).mode for y in other_sensor_y])
+    other_sensor_stds = np.array([np.std(y) for y in other_sensor_y])
+    mean_std = np.mean(other_sensor_stds)
+    other_sensor_deltas = other_sensor_modes - other_sensor_modes[0]
+    other_mse = np.mean((other_sensor_deltas - gt_deltas) ** 2)
+    print(f"Other Sensor MSE: {other_mse:.8f}, Mean Std Across Time: {mean_std:.8f}")
+
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(sensor_t, gt_deltas, label="True Δ", color=truth_color)
+    plt.plot(sensor_t, other_sensor_deltas, label=f"{other_sensor_name.upper()} Measured Δ", color='#66A61E')
+    plt.plot(sensor_t, sensor_deltas, label=f"{sensor_name.upper()} Measured Δ", color=measured_color)
+    plt.fill_between(sensor_t,
+                     sensor_deltas - 2 * sensor_stds,
+                     sensor_deltas + 2 * sensor_stds,
+    color=measured_color, alpha=0.3, label=f'{sensor_name.upper()} ±2σ Region')
+
+    # Labels and title
+    plt.xlabel("Time", fontsize=14)  #, fontweight='bold')
+    plt.ylabel("Water Level Change (cm)", fontsize=14)  #, fontweight='bold')
+    plt.xticks(rotation=45, fontsize=14, fontweight='bold')
+    plt.yticks(fontweight='bold', fontsize=14)
+    title = f"{sensor_name.upper()} — {stat_name.replace('_', ' ').title()}"
+    if title.endswith(' W'):
+        title = title.replace('— ', '— Windowed ')[:-2]
+    # plt.title(title, fontsize=16, fontweight='bold')
+
+    # Grid and legend
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+    plt.legend(fontsize=16, loc='best')
+    plt.tight_layout()
+
+    # Save
+    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_compared_deltas.png"
+    print('save as', fname)
+    plt.savefig(fname, dpi=900, bbox_inches="tight")
+    plt.show()
+
+    return mse
+
+
+def deltas(dates, sensor_stats, gt_depths, sensor_name, max_measurements=0, z_score_threshold=3, **kwargs):
     for stat_name in sensor_stats:
-        plot_deltas(dates, sensor_stats[stat_name], gt_depths, stat_name, sensor_name, max_measurements=max_measurements)
+        plot_deltas(dates, sensor_stats[stat_name], gt_depths, stat_name, sensor_name, max_measurements=max_measurements, z_score_threshold=z_score_threshold)
 
 
 def plot_stat_all_runs(sensor_t, sensor_stat, x_label, y_label, stat_name, sensor_name):
@@ -98,7 +216,7 @@ def plot_stat_all_runs(sensor_t, sensor_stat, x_label, y_label, stat_name, senso
     ax.set_title(sensor_name.upper() + ' ' + stat_name.replace(' ', '_').capitalize())
     ax.grid(True)
 
-    plt.savefig(f"plots/{sensor_name.replace(' ', '_').lower()}/{stat_name}.png", dpi=600, bbox_inches="tight")
+    plt.savefig(f"plots/{sensor_name.replace(' ', '_').lower()}/{stat_name}.png", dpi=900, bbox_inches="tight")
     plt.show()
 
 

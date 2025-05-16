@@ -9,7 +9,8 @@ from scipy import stats as scipy_stats
 def filter_points(
         sensor_data,
         intensity_threshold=0.0, intensity_threshold_percent=0.0,
-        x_limit=100.0, y_limit=100.0, y_threshold=0.0
+        x_limit=100.0, y_limit=100.0, y_threshold=0.0,
+        **kwargs
 ):
     """
     Filters radar point cloud data based on intensity and positional constraints.
@@ -65,7 +66,7 @@ def filter_points(
     return filtered_data
 
 
-def compute_statistics(sensor_data, window_size=1):
+def compute_statistics(sensor_data, window_size=1, **kwargs):
     """
     Compute statistical metrics for each measurement and apply a rolling window to measurements.
 
@@ -204,12 +205,12 @@ def window_size_search(sensor_data, gt_depths, sensor_name):
 
 def param_search_limited_measurements(sensor_data, gt_depths, sensor_name):
     scores = []
-    for y_threshold in (0.0, 0.1):
+    for y_threshold in (0.0, 0.1, 0.5):
         print('y_threshold', y_threshold)
-        for y_limit in tqdm((25, 50, 100)):
-            for x_limit in (1, 2, 5, 10):
-                for intensity_threshold_percent in (50, 75, 90):
-                    for window_size in (2, 5, 10, 15, 20):
+        for y_limit in tqdm((10, 25, 100)):
+            for x_limit in (0.5, 1, 2, 5, 100):
+                for intensity_threshold_percent in (0, 50, 75, 90):
+                    for window_size in (2, 5, 10, 15, 20, 40):
                         data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
                         sensor_stats = compute_statistics(data_filtered, window_size=window_size)
                         for stat_name in sensor_stats:
