@@ -85,8 +85,9 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
 
 
 
-measured_color = '#B40426'     # Brick red
+measured_color = '#C23020'   # Brick red
 truth_color = '#3B4CC0'  # Teal
+other_measured_color = '#996600'
 
 def reject_outliers_z(y, threshold=3):
     mean = np.mean(y)
@@ -163,20 +164,24 @@ def plot_deltas_compared(
     other_sensor_y = [y[:other_sensor_max_measurements] * 100 for y in other_sensor_y]
     other_sensor_modes = np.array([scipy_stats.mode(y, keepdims=False).mode for y in other_sensor_y])
     other_sensor_stds = np.array([np.std(y) for y in other_sensor_y])
-    mean_std = np.mean(other_sensor_stds)
+    # other_sensor_stds = np.clip(other_sensor_stds, 0, np.percentile(other_sensor_stds, 95))
     other_sensor_deltas = other_sensor_modes - other_sensor_modes[0]
     other_mse = np.mean((other_sensor_deltas - gt_deltas) ** 2)
     print(f"Other Sensor MSE: {other_mse:.8f}, Mean Std Across Time: {mean_std:.8f}")
 
-
     plt.figure(figsize=(12, 6))
     plt.plot(sensor_t, gt_deltas, label="True Δ", color=truth_color)
-    plt.plot(sensor_t, other_sensor_deltas, label=f"{other_sensor_name.upper()} Measured Δ", color='#66A61E')
+    plt.plot(sensor_t, other_sensor_deltas, label=f"{other_sensor_name.upper()} Measured Δ", color=other_measured_color)
+    # plt.fill_between(sensor_t,
+    #                  other_sensor_deltas - 2 * other_sensor_stds,
+    #                  other_sensor_deltas + 2 * other_sensor_stds,
+    #     color=other_measured_color, alpha=0.3, label=f'{other_sensor_name.upper()} ±2σ Region')
+    
     plt.plot(sensor_t, sensor_deltas, label=f"{sensor_name.upper()} Measured Δ", color=measured_color)
     plt.fill_between(sensor_t,
                      sensor_deltas - 2 * sensor_stds,
                      sensor_deltas + 2 * sensor_stds,
-    color=measured_color, alpha=0.3, label=f'{sensor_name.upper()} ±2σ Region')
+        color=measured_color, alpha=0.3, label=f'{sensor_name.upper()} ±2σ Region')
 
     # Labels and title
     plt.xlabel("Time", fontsize=14)  #, fontweight='bold')

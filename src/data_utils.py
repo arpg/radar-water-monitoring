@@ -214,7 +214,7 @@ def param_search_limited_measurements(sensor_data, gt_depths, sensor_name):
                         data_filtered = filter_points(sensor_data, y_threshold=y_threshold, y_limit=y_limit, x_limit=x_limit, intensity_threshold_percent=intensity_threshold_percent)
                         sensor_stats = compute_statistics(data_filtered, window_size=window_size)
                         for stat_name in sensor_stats:
-                            for max_measurements in (1, 2, 5, 10, 25, 50, 100):
+                            for max_measurements in (2, 5, 10, 25, 50, 100):
                                 mse = calc_delta_mse(sensor_stats[stat_name], gt_depths, max_measurements=max_measurements)
                                 score = {
                                     'y_threshold': y_threshold,
