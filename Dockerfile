@@ -1,6 +1,5 @@
 FROM ros:noetic
 
-
 RUN apt-get update && apt-get install -y \
     python3-pip \
     ros-noetic-rosbag \
@@ -18,7 +17,6 @@ COPY process_bags.py ./
 
 
 # source /opt/ros/noetic/setup.bash for manual ros operations
-CMD ["sh"]  
+# CMD ["sh"]  
 
-
-# CMD ["python3", "process_bags.py"]
+CMD ["python3", "process_bags.py"]

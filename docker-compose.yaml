@@ -2,7 +2,7 @@ services:
   radar-processing:
     build: .
     volumes:
-      - ~/data:/data
+      - ~/data/rwlm:/data
     stdin_open: true
     tty: true
 
@@ -10,11 +10,11 @@ services:
     extends:
       service: radar-processing
     environment:
-      - BAGS_PATH=/data/deployment_nov2023
-      - GT_PATH=/data/deployment_nov2023/GT_Nov2023.csv
+      - BAGS_PATH=/data/deployment_auto_nov2023
+      - GT_PATH=/data/deployment_auto_nov2023/GT_Nov2023.csv
 
-  manual:
-    extends:
-      service: radar-processing
-    environment:
-      - BAGS_PATH=/data/deployment_sept2023
+  # manual:
+  #   extends:
+  #     service: radar-processing
+  #   environment:
+  #     - BAG_PATH=/data/0_deg_1m.bag

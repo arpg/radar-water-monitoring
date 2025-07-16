@@ -3,6 +3,10 @@ __pycache__
 .vscode
 .DS_Store
 
+test.py
+*.pdf
+*.txt
+
 pics/
 *.png
 *.jpg

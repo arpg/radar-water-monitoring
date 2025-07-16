@@ -10,10 +10,11 @@ import tf.transformations as tf
 
 
 def read_bag_messages(bag_path):
-    imu_topic, r1843_topic, r1443_topic = (
+    imu_topic, r1843_topic, r1443_topic, cascade_cube_topic = (
         "/gx5/imu/data",
         "/1843_demo/mmWaveDataHdl/RScan",
         "/1443_hals/mmWaveDataHdl/RScan",
+        "/dca_node/data_cube"
     )
     imu, r1843, r1443 = [], [], []
     with rosbag.Bag(bag_path) as bag:
@@ -176,3 +177,7 @@ def process_bags(bags_folder, gt_path=None):
             results[k] = np.array(results[k])
 
     return results
+
+
+def process_single_bag(bag_path):
+

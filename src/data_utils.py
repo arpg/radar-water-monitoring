@@ -16,8 +16,7 @@ def filter_points(
     Filters radar point cloud data based on intensity and positional constraints.
 
     Parameters:
-        sensor_data (dict): Dictionary containing lists of lists of NumPy arrays
-            with keys: ['x', 'y', 'z', 'intensity'].
+        sensor_data (dict): Dictionary containing lists of lists of NumPy arrays with keys: ['x', 'y', 'z', 'intensity'].
         intensity_threshold (float): Minimum absolute intensity value to keep a point.
         intensity_threshold_percent (float): Percentage threshold of max intensity in a measurement.
         x_limit (float): Maximum absolute value for x-coordinates.
@@ -71,13 +70,11 @@ def compute_statistics(sensor_data, window_size=1, **kwargs):
     Compute statistical metrics for each measurement and apply a rolling window to measurements.
 
     Parameters:
-        sensor_data (dict): Dictionary containing 'x', 'y', 'z', and 'intensity' values.
-            Each entry is a list of lists of numpy arrays (shape: (runs, measurements, points)).
+        sensor_data (dict): Dictionary containing 'x', 'y', 'z', and 'intensity' values. Each entry is a list of lists of numpy arrays (shape: (runs, measurements, points)).
         window_size (int): Size of the rolling window applied to measurements.
 
     Returns:
-        dict: Processed statistics with the same number of runs, and windowed statistics
-              with (measurements - window_size + 1) values.
+        dict: Processed statistics with the same number of runs, and windowed statistics with (measurements - window_size + 1) values.
     """
     num_runs = len(sensor_data["y"])
     results = {

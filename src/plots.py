@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy import stats as scipy_stats
 from matplotlib import cm
 from matplotlib.colors import ListedColormap
+import matplotlib.dates as mdates
 
 from src import data_utils
 
@@ -26,12 +27,12 @@ def points(sensor_data, run_index, figsize=(5, 5), save_filename=None, gt_level=
     scatter = ax.scatter(x_vals, y_vals, c=intensities, cmap=coolwarm_cmap, alpha=0.7, s=5)
     cbar = plt.colorbar(scatter)
     cbar.set_label("Signal Intensity")
-    ax.set_xlabel("X Coordinate (m)")
-    ax.set_ylabel("Y Coordinate (m)")
+    ax.set_xlabel("X Coordinate [m]")
+    ax.set_ylabel("Y Coordinate [m]")
 
     if gt_level is not None:
         ax.axhline(y=gt_level, color='dimgray', linestyle=':', label='True Water Level')
-        ax.legend(fontsize=14)
+        ax.legend()
         
     if save_filename:
         plt.savefig(save_filename, dpi=900, bbox_inches='tight')
@@ -66,25 +67,6 @@ def stats(sensor_stats, run_index):
     plot_statistic(np.arange(len(median_distances)), median_distances, "Measurement Index", "Median Distance", f"Run {run_index}: Median Distance per Measurement")
 
 
-def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measurements=0, **kwargs):
-    max_measurements = max_measurements or 99999999
-    sensor_modes = np.array([scipy_stats.mode(y[:max_measurements], keepdims=False).mode for y in sensor_y])
-    sensor_deltas = sensor_modes - sensor_modes[0]
-    gt_deltas = -(gt_depths - gt_depths[0])
-    mse = np.mean((sensor_deltas - gt_deltas) ** 2)
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(sensor_t, sensor_deltas, label="Measured Increase in Distance: Distance[i] - Distance[0]", color="blue")
-    plt.plot(sensor_t, gt_deltas, label="True Decrease in Depth: Depth[0] - Depth[i]", color="orange")
-    plt.xlabel("Time")
-    plt.ylabel("Water Level Delta (m)")
-    plt.title(f"{sensor_name.upper()} {stat_name.replace('_', ' ').capitalize()}, MSE: {mse:.6f} m^2")
-    plt.legend()
-    plt.savefig(f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_deltas_mse{mse:.6f}.png", dpi=900, bbox_inches="tight")
-    plt.show()
-
-
-
 measured_color = '#C23020'   # Brick red
 truth_color = '#3B4CC0'  # Teal
 other_measured_color = '#996600'
@@ -112,6 +94,8 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
     plt.figure(figsize=(12, 6))
     plt.plot(sensor_t, sensor_deltas, label="Measured Δ", color=measured_color)
     plt.plot(sensor_t, gt_deltas, label="True Δ", color=truth_color)
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %H:%M'))
 
     # Add shaded ±1σ region around the measured delta line
     plt.fill_between(sensor_t,
@@ -120,10 +104,10 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
     color=measured_color, alpha=0.3, label='±2σ Region')
 
     # Labels and title
-    plt.xlabel("Time", fontsize=14)  #, fontweight='bold')
-    plt.ylabel("Water Level Change (cm)", fontsize=14)  #, fontweight='bold')
-    plt.xticks(rotation=45, fontsize=14, fontweight='bold')
-    plt.yticks(fontweight='bold', fontsize=14)
+    plt.xlabel("Time [DD HH:MM]", fontsize=14)
+    plt.ylabel("Δ [cm]", fontsize=14)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.yticks(fontsize=14)
     title = f"{sensor_name.upper()} — {stat_name.replace('_', ' ').title()}"
     if title.endswith(' W'):
         title = title.replace('— ', '— Windowed ')[:-2]
@@ -131,11 +115,11 @@ def plot_deltas(sensor_t, sensor_y, gt_depths, stat_name, sensor_name, max_measu
 
     # Grid and legend
     plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
-    plt.legend(fontsize=18, loc='best')
+    plt.legend(fontsize=14, loc='best')
     plt.tight_layout()
 
     # Save
-    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_deltas.png"
+    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_deltas.pdf"
     print('save as', fname)
     plt.savefig(fname, dpi=900, bbox_inches="tight")
     plt.show()
@@ -172,22 +156,21 @@ def plot_deltas_compared(
     plt.figure(figsize=(12, 6))
     plt.plot(sensor_t, gt_deltas, label="True Δ", color=truth_color)
     plt.plot(sensor_t, other_sensor_deltas, label=f"{other_sensor_name.upper()} Measured Δ", color=other_measured_color)
-    # plt.fill_between(sensor_t,
-    #                  other_sensor_deltas - 2 * other_sensor_stds,
-    #                  other_sensor_deltas + 2 * other_sensor_stds,
-    #     color=other_measured_color, alpha=0.3, label=f'{other_sensor_name.upper()} ±2σ Region')
-    
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %H:%M'))
+
     plt.plot(sensor_t, sensor_deltas, label=f"{sensor_name.upper()} Measured Δ", color=measured_color)
     plt.fill_between(sensor_t,
                      sensor_deltas - 2 * sensor_stds,
                      sensor_deltas + 2 * sensor_stds,
         color=measured_color, alpha=0.3, label=f'{sensor_name.upper()} ±2σ Region')
+    
 
     # Labels and title
-    plt.xlabel("Time", fontsize=14)  #, fontweight='bold')
-    plt.ylabel("Water Level Change (cm)", fontsize=14)  #, fontweight='bold')
-    plt.xticks(rotation=45, fontsize=14, fontweight='bold')
-    plt.yticks(fontweight='bold', fontsize=14)
+    plt.xlabel("Time [DD HH:MM]", fontsize=14)
+    plt.ylabel("Δ [cm]", fontsize=14)
+    plt.xticks(rotation=45, fontsize=14)
+    plt.yticks(fontsize=14)
     title = f"{sensor_name.upper()} — {stat_name.replace('_', ' ').title()}"
     if title.endswith(' W'):
         title = title.replace('— ', '— Windowed ')[:-2]
@@ -195,11 +178,11 @@ def plot_deltas_compared(
 
     # Grid and legend
     plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
-    plt.legend(fontsize=16, loc='best')
+    plt.legend(fontsize=14, loc='best')
     plt.tight_layout()
 
     # Save
-    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_compared_deltas.png"
+    fname = f"{sensor_name.replace(' ', '_').lower()}_{stat_name}_compared_deltas.pdf"
     print('save as', fname)
     plt.savefig(fname, dpi=900, bbox_inches="tight")
     plt.show()
